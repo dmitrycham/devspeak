@@ -25,18 +25,9 @@ func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
 }
 
-// Create validates the input and saves a new word.
-//
-// Rules:
-//   - Trim spaces in Word, Translation and Example (strings.TrimSpace).
-//   - Word and Translation are required. If one is empty after trimming,
-//     return an error that wraps ErrInvalidInput, for example:
-//     fmt.Errorf("%w: word is required", ErrInvalidInput)
-//     Do not call the repository in this case.
-//   - Call s.repo.Create with the trimmed input.
-//   - Return repository errors (like ErrDuplicate) as they are, or wrapped with %w.
-//
-// Check your code: go test ./internal/words -run TestService -v
+// Create trims the input, checks required fields and saves a new word.
+// It returns ErrInvalidInput if word or translation is empty,
+// and ErrDuplicate if the word already exists.
 func (s *Service) Create(ctx context.Context, in CreateInput) (Word, error) {
 	in.Word = strings.TrimSpace(in.Word)
 	in.Translation = strings.TrimSpace(in.Translation)
