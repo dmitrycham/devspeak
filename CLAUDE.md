@@ -18,7 +18,7 @@ One repository, two services:
 - Everything: `docker compose up --build`
 
 ## Current sprint
-Sprint 1 (Nov 18–24): repository setup, CI, Go API for words + PostgreSQL in Docker.
+Sprint 1 (Nov 18–24): setup, Words/Cards API, spaced repetition, Telegram bot MVP (DEV-12), CI (DEV-6).
 (Updated every Wednesday after sprint planning.)
 
 ## Rules
@@ -34,3 +34,9 @@ Sprint 1 (Nov 18–24): repository setup, CI, Go API for words + PostgreSQL in D
 - OK without asking: git status/diff/log, create a branch, commit and push to a feature branch, open a PR (gh pr create), read PRs and CI.
 - Always ask first, even in auto mode: merge a PR (only after the team lead wrote "Approved"), delete a branch, any push to main, change repo settings, close a PR or issue.
 - Never: force push to main, rewrite pushed history, git reset --hard, delete or rename the repo, change its visibility, commit .env or tokens.
+
+## Jira rules
+- Site: chalextoday.atlassian.net, project DEV.
+- Before work: read the ticket and move it to In Progress.
+- When done: tick the acceptance criteria. After merge: move it to Done.
+- Never create, delete or change ticket text without asking.
