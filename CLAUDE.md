@@ -4,11 +4,13 @@ General rules are in `~/.claude/CLAUDE.md`. This file is only about this project
 
 ## Project
 DevSpeak: English for developers. A smart vocabulary with spaced repetition and an AI interview trainer.
+Target stack: Go, PostgreSQL, Redis, gRPC, Kafka. CI: GitHub Actions now, plus a GitLab CI mirror in Sprint 4.
 One repository, two services:
-- `go-api/` — Go: REST API, Telegram bot, PostgreSQL, spaced repetition (SM-2).
-- `ai-service/` — Python 3.14: async FastAPI, Pydantic, LLM calls (Ollama locally, cloud API later), structured output, tool calling, RAG with pgvector.
+- `go-api/` — Go: REST API, Telegram bot, PostgreSQL, spaced repetition (SM-2), Redis (cache, rate limit), Kafka (events, transactional outbox).
+- `ai-service/` — Python 3.14: async FastAPI, Pydantic, LLM calls (Ollama locally, cloud API later), structured output, tool calling.
 - `docker-compose.yml` — starts Go API, AI service, PostgreSQL (with pgvector) and Ollama.
-- The services talk to each other over HTTP with JSON.
+- The services talk to each other over HTTP with JSON now, and over gRPC from Sprint 3.
+- Later (month 2): RAG with pgvector in `ai-service/`.
 
 ## Commands
 - Go API: `cd go-api && go test ./... && golangci-lint run`
@@ -25,4 +27,5 @@ Sprint 1 (Nov 18–24): repository setup, CI, Go API for words + PostgreSQL in D
 - Every new feature has tests.
 - Secrets only in `.env`, never in Git.
 - Branches: `feature/DEV-<n>-short-name`. Commits: Conventional Commits in English (`feat:`, `fix:`, `chore:`).
+- Small docs changes: `docs/<short-name>`, no ticket.
 - Show a plan before big changes. Keep code simple: I must be able to explain every line.
