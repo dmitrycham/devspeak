@@ -26,3 +26,8 @@ Sprint 1 (Nov 18–24): repository setup, CI, Go API for words + PostgreSQL in D
 - Secrets only in `.env`, never in Git.
 - Branches: `feature/DEV-<n>-short-name`. Commits: Conventional Commits in English (`feat:`, `fix:`, `chore:`).
 - Show a plan before big changes. Keep code simple: I must be able to explain every line.
+
+## GitHub rules
+- OK without asking: git status/diff/log, create a branch, commit and push to a feature branch, open a PR (gh pr create), read PRs and CI.
+- Always ask first, even in auto mode: merge a PR (only after the team lead wrote "Approved"), delete a branch, any push to main, change repo settings, close a PR or issue.
+- Never: force push to main, rewrite pushed history, git reset --hard, delete or rename the repo, change its visibility, commit .env or tokens.
