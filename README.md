@@ -44,3 +44,39 @@ docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 docker compose down        # stop; data stays in the pgdata volume
 docker compose down -v     # stop and DELETE all data
 ```
+
+## Go API
+
+The words REST API lives in `go-api/`. It reads settings from the root `.env`.
+
+### Run
+
+```bash
+docker compose up -d --wait db
+docker compose run --rm migrate up
+cd go-api && go run ./cmd/api      # listens on HTTP_ADDR (default :8080)
+```
+
+### Endpoints
+
+| Method | Path          | Success | Errors                                   |
+|--------|---------------|---------|------------------------------------------|
+| POST   | `/words`      | 201     | 400 invalid body, 409 duplicate word     |
+| GET    | `/words`      | 200     |                                          |
+| GET    | `/words/{id}` | 200     | 400 bad id, 404 not found                |
+| DELETE | `/words/{id}` | 204     | 400 bad id, 404 not found                |
+
+```bash
+curl -i -X POST localhost:8080/words \
+  -H 'Content-Type: application/json' \
+  -d '{"word":"goroutine","translation":"горутина","example":"Start a goroutine."}'
+curl -i localhost:8080/words
+curl -i localhost:8080/words/1
+curl -i -X DELETE localhost:8080/words/1
+```
+
+### Test and lint
+
+```bash
+cd go-api && go test -race ./... && golangci-lint run
+```
