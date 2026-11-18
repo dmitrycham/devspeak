@@ -1,4 +1,4 @@
-package words
+package cards
 
 import (
 	"context"
@@ -7,68 +7,68 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+
+	"github.com/dmitrycham/devspeak/go-api/internal/srs"
 )
 
 // maxBodyBytes limits the request body size (1 MB).
 const maxBodyBytes = 1 << 20
 
-// wordService is what the handler needs from the business layer.
+// cardService is what the handler needs from the business layer.
 // It is declared here, by the consumer, so tests can pass a fake.
 // *Service implements it.
-type wordService interface {
-	Create(ctx context.Context, in CreateInput) (Word, error)
-	List(ctx context.Context) ([]Word, error)
-	Get(ctx context.Context, id int64) (Word, error)
+type cardService interface {
+	Create(ctx context.Context, in CreateInput) (Card, error)
+	List(ctx context.Context) ([]Card, error)
+	Get(ctx context.Context, id int64) (Card, error)
 	Delete(ctx context.Context, id int64) error
+	NextDue(ctx context.Context) (Card, error)
+	Review(ctx context.Context, id int64, grade srs.Grade) (Card, error)
 }
 
-// Handler serves the words HTTP API.
+// Handler serves the cards and reviews HTTP API.
 type Handler struct {
-	svc    wordService
+	svc    cardService
 	logger *slog.Logger
 }
 
 // NewHandler creates a Handler.
-func NewHandler(svc wordService, logger *slog.Logger) *Handler {
+func NewHandler(svc cardService, logger *slog.Logger) *Handler {
 	return &Handler{svc: svc, logger: logger}
 }
 
 // Routes returns the HTTP routes (Go 1.22+ patterns: "METHOD /path/{param}").
 func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /words", h.create)
-	mux.HandleFunc("GET /words", h.list)
-	mux.HandleFunc("GET /words/{id}", h.get)
-	mux.HandleFunc("DELETE /words/{id}", h.delete)
+	mux.HandleFunc("POST /cards", h.create)
+	mux.HandleFunc("GET /cards", h.list)
+	mux.HandleFunc("GET /cards/{id}", h.get)
+	mux.HandleFunc("DELETE /cards/{id}", h.delete)
+	mux.HandleFunc("GET /reviews/next", h.nextReview)
+	mux.HandleFunc("POST /reviews/{id}", h.review)
 	return mux
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-
 	var in CreateInput
-	if err := dec.Decode(&in); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+	if !decodeJSON(w, r, &in) {
 		return
 	}
-
-	word, err := h.svc.Create(r.Context(), in)
+	card, err := h.svc.Create(r.Context(), in)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, word)
+	writeJSON(w, http.StatusCreated, card)
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	words, err := h.svc.List(r.Context())
+	cards, err := h.svc.List(r.Context())
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, words)
+	writeJSON(w, http.StatusOK, cards)
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
@@ -76,12 +76,12 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	word, err := h.svc.Get(r.Context(), id)
+	card, err := h.svc.Get(r.Context(), id)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, word)
+	writeJSON(w, http.StatusOK, card)
 }
 
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +94,62 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// nextReview returns the next due card, or 204 No Content if nothing is due.
+func (h *Handler) nextReview(w http.ResponseWriter, r *http.Request) {
+	card, err := h.svc.NextDue(r.Context())
+	if errors.Is(err, ErrNotFound) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, card)
+}
+
+// reviewRequest is the body of POST /reviews/{id}.
+type reviewRequest struct {
+	Grade string `json:"grade"`
+}
+
+// review applies a grade ("knew" or "forgot") and returns the updated card.
+func (h *Handler) review(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseID(w, r)
+	if !ok {
+		return
+	}
+	var req reviewRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	grade, err := srs.ParseGrade(req.Grade)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	card, err := h.svc.Review(r.Context(), id, grade)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, card)
+}
+
+// decodeJSON reads the request body into v. It writes 400 and returns false
+// if the body is not valid JSON, has unknown fields or is bigger than 1 MB.
+func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return false
+	}
+	return true
 }
 
 // parseID reads {id} from the path. It writes 400 and returns false

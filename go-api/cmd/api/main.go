@@ -1,4 +1,4 @@
-// Command api starts the DevSpeak words REST API.
+// Command api starts the DevSpeak cards and reviews REST API.
 package main
 
 import (
@@ -16,8 +16,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 
+	"github.com/dmitrycham/devspeak/go-api/internal/cards"
 	"github.com/dmitrycham/devspeak/go-api/internal/config"
-	"github.com/dmitrycham/devspeak/go-api/internal/words"
 )
 
 func main() {
@@ -59,9 +59,9 @@ func run(logger *slog.Logger) error {
 	}
 
 	// Wire the layers: repository → service → handler.
-	repo := words.NewPostgresRepository(pool)
-	svc := words.NewService(repo)
-	handler := words.NewHandler(svc, logger)
+	repo := cards.NewPostgresRepository(pool)
+	svc := cards.NewService(repo)
+	handler := cards.NewHandler(svc, logger)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

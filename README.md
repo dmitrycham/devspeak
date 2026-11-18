@@ -47,7 +47,7 @@ docker compose down -v     # stop and DELETE all data
 
 ## Go API
 
-The words REST API lives in `go-api/`. It reads settings from the root `.env`.
+The cards REST API lives in `go-api/`. It reads settings from the root `.env`.
 
 ### Run
 
@@ -59,21 +59,31 @@ cd go-api && go run ./cmd/api      # listens on HTTP_ADDR (default :8080)
 
 ### Endpoints
 
-| Method | Path          | Success | Errors                                   |
-|--------|---------------|---------|------------------------------------------|
-| POST   | `/words`      | 201     | 400 invalid body, 409 duplicate word     |
-| GET    | `/words`      | 200     |                                          |
-| GET    | `/words/{id}` | 200     | 400 bad id, 404 not found                |
-| DELETE | `/words/{id}` | 204     | 400 bad id, 404 not found                |
+| Method | Path            | Success                 | Errors                                       |
+|--------|-----------------|-------------------------|----------------------------------------------|
+| POST   | `/cards`        | 201                     | 400 invalid body, 409 duplicate phrase       |
+| GET    | `/cards`        | 200                     |                                              |
+| GET    | `/cards/{id}`   | 200                     | 400 bad id, 404 not found                    |
+| DELETE | `/cards/{id}`   | 204                     | 400 bad id, 404 not found                    |
+| GET    | `/reviews/next` | 200 card, 204 none due  |                                              |
+| POST   | `/reviews/{id}` | 200 updated card        | 400 bad id / body / grade, 404 not found     |
 
 ```bash
-curl -i -X POST localhost:8080/words \
+curl -i -X POST localhost:8080/cards \
   -H 'Content-Type: application/json' \
-  -d '{"word":"goroutine","translation":"горутина","example":"Start a goroutine."}'
-curl -i localhost:8080/words
-curl -i localhost:8080/words/1
-curl -i -X DELETE localhost:8080/words/1
+  -d '{"phrase":"goroutine","translation":"горутина","example":"Start a goroutine."}'
+curl -i localhost:8080/cards
+curl -i localhost:8080/reviews/next
+curl -i -X POST localhost:8080/reviews/1 \
+  -H 'Content-Type: application/json' -d '{"grade":"knew"}'      # or "forgot"
 ```
+
+### Spaced repetition (SM-2, two grades)
+
+New cards are due now. `internal/srs` computes the next review:
+
+- **knew**: interval 1 day → 3 days → interval × ease (rounded). Ease does not change.
+- **forgot**: the card starts again and is due now; ease − 0.2 (minimum 1.3).
 
 ### Test and lint
 
