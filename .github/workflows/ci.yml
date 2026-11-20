@@ -22,3 +22,19 @@ jobs:
           cache-dependency-path: go-api/go.sum
       - run: go vet ./...
       - run: go test ./...
+
+  python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-service
+    steps:
+      - uses: actions/checkout@v7
+      # Pinned to a commit SHA, as the setup-uv docs recommend; uv reads .python-version from ai-service.
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+        with:
+          working-directory: ai-service
+      # --locked fails the job if uv.lock does not match pyproject.toml.
+      - run: uv sync --locked
+      - run: uv run --locked ruff check .
+      - run: uv run --locked pytest

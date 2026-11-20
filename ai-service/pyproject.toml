@@ -1,0 +1,26 @@
+[project]
+name = "ai-service"
+version = "0.1.0"
+description = "DevSpeak AI service: LLM calls for the interview trainer."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.165.0",
+    "uvicorn>=0.54.0",
+]
+
+[tool.ruff.lint]
+# ANN enforces type hints everywhere; I sorts imports; UP and B catch outdated and bug-prone code.
+select = ["E", "F", "I", "UP", "B", "ANN"]
+
+[tool.pytest.ini_options]
+# The project is not installed as a package, so tests need the project root on sys.path to import `app`.
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16.2",
+    "pytest>=9.2.0",
+    "ruff>=0.17.6",
+]
