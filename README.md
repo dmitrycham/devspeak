@@ -85,6 +85,42 @@ New cards are due now. `internal/srs` computes the next review:
 - **knew**: interval 1 day → 3 days → interval × ease (rounded). Ease does not change.
 - **forgot**: the card starts again and is due now; ease − 0.2 (minimum 1.3).
 
+## Telegram bot
+
+The bot runs on your machine with long polling: no public server needed.
+It uses the same service layer and database as the API.
+
+### Create the bot
+
+1. In Telegram, open [@BotFather](https://t.me/BotFather) and send `/newbot`.
+2. Choose a name and a username (must end with `bot`). BotFather sends you the token.
+3. Open [@userinfobot](https://t.me/userinfobot) to get your numeric Telegram user id.
+4. Put both values in `.env` (never commit it):
+
+```bash
+TELEGRAM_BOT_TOKEN=<token from BotFather>
+TELEGRAM_ALLOWED_USER_ID=<your numeric user id>
+```
+
+Only this user id can use the bot. Messages from other users are ignored.
+
+### Run
+
+```bash
+docker compose up -d --wait db
+docker compose run --rm migrate up
+cd go-api && go run ./cmd/bot      # stop with Ctrl+C
+```
+
+### Commands
+
+- `/add It stops accepting new requests — перестаёт принимать новые запросы`
+  saves a card (the separator is `—` or ` - `). You can send several `/add` lines
+  in one message: each line is one card, and phrases that already exist are skipped.
+- `/review` shows the Russian side. Say the English chunk aloud, press **Show**,
+  then press **✅ Knew** or **❌ Forgot**. The next due card comes right after.
+  When nothing is due, the bot says "All done for today".
+
 ### Test and lint
 
 ```bash
