@@ -6,7 +6,7 @@ class OllamaError(Exception):
     """Ollama is unreachable or returned an answer we cannot use."""
 
 
-class OllamaTimeoutError(Exception):
+class OllamaTimeoutError(OllamaError):
     """Ollama did not answer within the client timeout."""
 
 

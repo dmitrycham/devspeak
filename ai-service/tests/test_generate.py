@@ -74,13 +74,17 @@ def _read_timeout(request: httpx2.Request) -> httpx2.Response:
     ],
 )
 def test_generate_maps_ollama_errors(
-    fake_ollama: Callable[[Handler], None], handler: Handler, want_status: int
+    fake_ollama: Callable[[Handler], None],
+    handler: Handler,
+    want_status: int,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     fake_ollama(handler)
 
     response = client.post("/generate", json={"prompt": "Say hi"})
 
     assert response.status_code == want_status
+    assert "ollama call" in caplog.text
 
 
 def test_generate_rejects_empty_prompt(fake_ollama: Callable[[Handler], None]) -> None:
