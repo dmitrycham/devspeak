@@ -1,0 +1,17 @@
+[project]
+name = "python-basics"
+version = "0.1.0"
+description = "Python basics katas, compared with Go."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
+
+[tool.ruff.lint]
+# Same rules as ai-service: ANN enforces type hints everywhere.
+select = ["E", "F", "I", "UP", "B", "ANN"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "ruff>=0.17.6",
+]
