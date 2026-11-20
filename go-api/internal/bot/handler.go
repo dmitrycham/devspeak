@@ -133,16 +133,20 @@ func (h *Handler) show(ctx context.Context, b *tg.Bot, update *models.Update) {
 	}
 
 	card, err := h.svc.Get(ctx, id)
-	if err != nil {
-		h.logger.Error("get card", "id", id, "error", err)
+	switch {
+	case errors.Is(err, cards.ErrNotFound):
 		h.send(ctx, b, msg.Chat.ID, "Card not found.", nil)
+		return
+	case err != nil:
+		h.logger.Error("get card", "id", id, "error", err)
+		h.send(ctx, b, msg.Chat.ID, "Something went wrong. Try again later.", nil)
 		return
 	}
 
 	keyboard := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{{
-			{Text: "✅ Knew", CallbackData: gradeData(card.ID, srs.Knew)},
-			{Text: "❌ Forgot", CallbackData: gradeData(card.ID, srs.Forgot)},
+			{Text: gradeLabel(srs.Knew), CallbackData: gradeData(card.ID, srs.Knew)},
+			{Text: gradeLabel(srs.Forgot), CallbackData: gradeData(card.ID, srs.Forgot)},
 		}},
 	}
 	_, err = b.EditMessageText(ctx, &tg.EditMessageTextParams{
@@ -172,10 +176,22 @@ func (h *Handler) grade(ctx context.Context, b *tg.Bot, update *models.Update) {
 		return
 	}
 
-	if _, err := h.svc.Review(ctx, id, grade); err != nil {
+	card, err := h.svc.Review(ctx, id, grade)
+	if err != nil {
 		h.logger.Error("review card", "id", id, "error", err)
 		h.send(ctx, b, msg.Chat.ID, "Could not save the grade. Try again.", nil)
 		return
+	}
+
+	// Remove the buttons, so an old message cannot grade the same card again
+	// and break its schedule. Editing without ReplyMarkup drops the keyboard.
+	_, err = b.EditMessageText(ctx, &tg.EditMessageTextParams{
+		ChatID:    msg.Chat.ID,
+		MessageID: msg.ID,
+		Text:      card.Translation + "\n\n" + card.Phrase + "\n\n" + gradeLabel(grade),
+	})
+	if err != nil {
+		h.logger.Error("edit message", "error", err)
 	}
 
 	h.sendNextCard(ctx, b, msg.Chat.ID)

@@ -85,6 +85,7 @@ func TestParseAddAll(t *testing.T) {
 		{name: "line without /add", text: "/add roll back — откатить\nretry — повторить", wantErr: ErrBadAdd},
 		{name: "bad second line", text: "/add roll back — откатить\n/add retry", wantErr: ErrBadAdd},
 		{name: "empty text", text: "", wantErr: ErrBadAdd},
+		{name: "other command that starts with add", text: "/addx foo — bar", wantErr: ErrBadAdd},
 		{name: "only command", text: "/add", wantErr: ErrBadAdd},
 	}
 
@@ -105,6 +106,24 @@ func TestParseAddAllErrorNamesTheLine(t *testing.T) {
 	_, err := ParseAddAll("/add roll back — откатить\n/add retry")
 	if err == nil || !strings.Contains(err.Error(), "line 2") {
 		t.Fatalf("error = %v, want it to mention line 2", err)
+	}
+}
+
+func TestGradeLabel(t *testing.T) {
+	tests := []struct {
+		grade srs.Grade
+		want  string
+	}{
+		{grade: srs.Knew, want: "✅ Knew"},
+		{grade: srs.Forgot, want: "❌ Forgot"},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.grade), func(t *testing.T) {
+			if got := gradeLabel(tt.grade); got != tt.want {
+				t.Errorf("gradeLabel(%q) = %q, want %q", tt.grade, got, tt.want)
+			}
+		})
 	}
 }
 
