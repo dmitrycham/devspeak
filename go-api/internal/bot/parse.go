@@ -54,7 +54,8 @@ func ParseAddAll(text string) ([]cards.CreateInput, error) {
 		if line == "" {
 			continue
 		}
-		if !strings.HasPrefix(line, "/add") {
+		// "/add " with a space, so "/address" or "/addx" is not taken as /add.
+		if line != "/add" && !strings.HasPrefix(line, "/add ") {
 			return nil, fmt.Errorf("line %d: %w", i+1, ErrBadAdd)
 		}
 		in, err := ParseAdd(line)
@@ -91,6 +92,15 @@ func showData(id int64) string {
 // gradeData is the callback data of the "Knew" and "Forgot" buttons.
 func gradeData(id int64, g srs.Grade) string {
 	return fmt.Sprintf("%s%d:%s", gradePrefix, id, g)
+}
+
+// gradeLabel is the button text for a grade. It is also shown
+// in the message after the grade is saved.
+func gradeLabel(g srs.Grade) string {
+	if g == srs.Knew {
+		return "✅ Knew"
+	}
+	return "❌ Forgot"
 }
 
 // parseShow reads the card id from the "Show" callback data.
