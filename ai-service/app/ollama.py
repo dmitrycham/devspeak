@@ -1,3 +1,5 @@
+from typing import Any
+
 import httpx2
 from pydantic import BaseModel, ValidationError
 
@@ -21,8 +23,8 @@ class OllamaClient:
         self._http = http
         self.model = model
 
-    async def generate(self, prompt: str) -> str:
-        payload = {
+    async def generate(self, prompt: str, schema: dict[str, Any] | None = None) -> str:
+        payload: dict[str, Any] = {
             "model": self.model,
             "prompt": prompt,
             # One JSON answer instead of a stream of chunks.
@@ -30,6 +32,11 @@ class OllamaClient:
             # qwen3.5 is a thinking model; thinking is slow and we never show it.
             "think": False,
         }
+        if schema is not None:
+            # Ollama limits the model's tokens to this JSON schema.
+            payload["format"] = schema
+            # Temperature 0 makes the answer more stable, as Ollama's docs advise.
+            payload["options"] = {"temperature": 0}
         try:
             response = await self._http.post("/api/generate", json=payload)
             response.raise_for_status()
