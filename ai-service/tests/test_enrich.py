@@ -55,8 +55,33 @@ def test_enrich_returns_card(fake_ollama: Callable[[Handler], None]) -> None:
     assert response.json() == VALID_CARD
     assert len(ollama.requests) == 1
     sent = ollama.requests[0]
-    assert sent["format"] == EnrichResponse.model_json_schema()
-    assert "roll out" in str(sent["prompt"])
+    assert "format" not in sent
+    prompt = str(sent["prompt"])
+    assert "roll out" in prompt
+    assert json.dumps(EnrichResponse.model_json_schema()) in prompt
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        pytest.param(f"```json\n{json.dumps(VALID_CARD)}\n```", id="json fence"),
+        pytest.param(f"```\n{json.dumps(VALID_CARD)}\n```", id="plain fence"),
+        pytest.param(f"```JSON\n{json.dumps(VALID_CARD)}\n```", id="upper label"),
+        pytest.param(f"``` json\n{json.dumps(VALID_CARD)}\n```", id="space label"),
+        pytest.param(f"Here is the card:\n{json.dumps(VALID_CARD)}", id="text before"),
+    ],
+)
+def test_enrich_accepts_json_in_wrapper(
+    fake_ollama: Callable[[Handler], None], answer: str
+) -> None:
+    ollama = ScriptedOllama([answer])
+    fake_ollama(ollama)
+
+    response = client.post("/enrich", json={"phrase": "roll out"})
+
+    assert response.status_code == 200
+    assert response.json() == VALID_CARD
+    assert len(ollama.requests) == 1
 
 
 def test_enrich_retries_after_invalid_json(
