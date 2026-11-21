@@ -22,6 +22,11 @@ jobs:
           cache-dependency-path: go-api/go.sum
       - run: go vet ./...
       - run: go test ./...
+      # Repository tests on a real PostgreSQL (testcontainers); ubuntu-latest has Docker.
+      # -count=1 disables the test cache: TestMain reads the SQL migrations before
+      # m.Run, where Go does not track files yet, so a migration-only change
+      # could otherwise reuse an old "ok (cached)" result.
+      - run: go test -count=1 -tags=integration ./internal/cards/...
 
   python:
     runs-on: ubuntu-latest
