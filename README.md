@@ -65,6 +65,7 @@ cd go-api && go run ./cmd/api      # listens on HTTP_ADDR (default :8080)
 | GET    | `/cards`        | 200                     |                                              |
 | GET    | `/cards/{id}`   | 200                     | 400 bad id, 404 not found                    |
 | DELETE | `/cards/{id}`   | 204                     | 400 bad id, 404 not found                    |
+| POST   | `/cards/{id}/enrich` | 200 updated card   | 400 bad id, 404 not found, 502 AI service failed, 504 AI timeout |
 | GET    | `/reviews/next` | 200 card, 204 none due  |                                              |
 | POST   | `/reviews/{id}` | 200 updated card        | 400 bad id / body / grade, 404 not found     |
 
@@ -76,7 +77,23 @@ curl -i localhost:8080/cards
 curl -i localhost:8080/reviews/next
 curl -i -X POST localhost:8080/reviews/1 \
   -H 'Content-Type: application/json' -d '{"grade":"knew"}'      # or "forgot"
+curl -i -X POST localhost:8080/cards/1/enrich                    # needs ai-service
 ```
+
+### Enrich with the AI service
+
+`POST /cards/{id}/enrich` sends the phrase to `ai-service` (`POST /enrich`) and saves
+`it_context`. The example is filled only if the card has none: the user's example wins.
+A card that already has `it_context` is returned as is, without an AI call,
+so repeated calls are cheap and add no data. If two requests enrich the same card
+at the same time, the first saved answer wins and both get the same card.
+
+| Variable         | Default                 | Meaning                                  |
+|------------------|-------------------------|------------------------------------------|
+| `AI_SERVICE_URL` | `http://localhost:8000` | base URL of `ai-service`                 |
+| `AI_TIMEOUT`     | `30s`                   | limit for one AI call (Go duration)      |
+
+The server's write timeout is `AI_TIMEOUT + 10s`, so a slow AI answer still reaches the client.
 
 ### Spaced repetition (SM-2, two grades)
 

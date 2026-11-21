@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dmitrycham/devspeak/go-api/internal/ai"
 	"github.com/dmitrycham/devspeak/go-api/internal/srs"
 )
 
@@ -24,6 +25,7 @@ type fakeService struct {
 	deleteFn func(int64) error
 	nextFn   func() (Card, error)
 	reviewFn func(int64, srs.Grade) (Card, error)
+	enrichFn func(int64) (Card, error)
 }
 
 func (f *fakeService) Create(_ context.Context, in CreateInput) (Card, error) { return f.createFn(in) }
@@ -34,6 +36,7 @@ func (f *fakeService) NextDue(_ context.Context) (Card, error)                { 
 func (f *fakeService) Review(_ context.Context, id int64, g srs.Grade) (Card, error) {
 	return f.reviewFn(id, g)
 }
+func (f *fakeService) Enrich(_ context.Context, id int64) (Card, error) { return f.enrichFn(id) }
 
 var errDB = errors.New("db is down")
 
@@ -139,6 +142,42 @@ func TestHandler(t *testing.T) {
 		{
 			name: "delete: bad id → 400", method: http.MethodDelete, path: "/cards/-5",
 			svc: &fakeService{}, wantStatus: http.StatusBadRequest, wantBody: "positive number",
+		},
+
+		// POST /cards/{id}/enrich
+		{
+			name: "enrich: 200 with updated card", method: http.MethodPost, path: "/cards/1/enrich",
+			svc: &fakeService{enrichFn: func(id int64) (Card, error) {
+				return Card{ID: id, Phrase: "Go", ITContext: "A programming language."}, nil
+			}},
+			wantStatus: http.StatusOK, wantBody: `"it_context":"A programming language."`,
+		},
+		{
+			name: "enrich: not found → 404", method: http.MethodPost, path: "/cards/999/enrich",
+			svc:        &fakeService{enrichFn: func(int64) (Card, error) { return Card{}, ErrNotFound }},
+			wantStatus: http.StatusNotFound, wantBody: "not found",
+		},
+		{
+			name: "enrich: AI service down → 502, details hidden", method: http.MethodPost, path: "/cards/1/enrich",
+			svc: &fakeService{enrichFn: func(int64) (Card, error) {
+				return Card{}, fmt.Errorf("enrich card 1: %w: dial tcp 127.0.0.1:8000: connection refused", ai.ErrUnavailable)
+			}},
+			wantStatus: http.StatusBadGateway, wantBody: `"ai service unavailable"`,
+		},
+		{
+			name: "enrich: AI timeout → 504", method: http.MethodPost, path: "/cards/1/enrich",
+			svc: &fakeService{enrichFn: func(int64) (Card, error) {
+				return Card{}, fmt.Errorf("enrich card 1: %w: status 504", ai.ErrTimeout)
+			}},
+			wantStatus: http.StatusGatewayTimeout, wantBody: `"ai service timed out"`,
+		},
+		{
+			name: "enrich: bad id → 400", method: http.MethodPost, path: "/cards/abc/enrich",
+			svc: &fakeService{}, wantStatus: http.StatusBadRequest, wantBody: "positive number",
+		},
+		{
+			name: "enrich: GET is not allowed → 405", method: http.MethodGet, path: "/cards/1/enrich",
+			svc: &fakeService{}, wantStatus: http.StatusMethodNotAllowed,
 		},
 
 		// GET /reviews/next

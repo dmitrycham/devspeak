@@ -18,7 +18,7 @@ const pgUniqueViolation = "23505"
 
 // cardColumns is the column list for every SELECT/RETURNING.
 // The order must match scanCard.
-const cardColumns = `id, phrase, translation, example, due_at, interval_days, ease, repetitions, created_at`
+const cardColumns = `id, phrase, translation, example, it_context, due_at, interval_days, ease, repetitions, created_at`
 
 // PostgresRepository stores cards in PostgreSQL.
 type PostgresRepository struct {
@@ -34,7 +34,7 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 // Both pgx.Row and pgx.Rows have a Scan method, so it works for both.
 func scanCard(row interface{ Scan(dest ...any) error }) (Card, error) {
 	var c Card
-	err := row.Scan(&c.ID, &c.Phrase, &c.Translation, &c.Example,
+	err := row.Scan(&c.ID, &c.Phrase, &c.Translation, &c.Example, &c.ITContext,
 		&c.DueAt, &c.IntervalDays, &c.Ease, &c.Repetitions, &c.CreatedAt)
 	return c, err
 }
@@ -135,6 +135,33 @@ func (r *PostgresRepository) UpdateSchedule(ctx context.Context, id int64, st sr
 	}
 	if err != nil {
 		return Card{}, fmt.Errorf("update card %d schedule: %w", id, err)
+	}
+	return c, nil
+}
+
+// UpdateEnrichment saves the AI content once: the first enrichment wins.
+// The user's example wins too: example is set only if it is empty.
+// If the card is already enriched (for example, by a parallel request),
+// nothing changes and the stored card is returned, so the example and the
+// IT context always come from the same AI answer. It returns ErrNotFound
+// if the card does not exist.
+func (r *PostgresRepository) UpdateEnrichment(ctx context.Context, id int64, example, itContext string) (Card, error) {
+	// it_context = '' in WHERE makes "check and update" one atomic statement:
+	// of two parallel UPDATEs, only the first one matches the row.
+	query := `UPDATE cards
+		SET example = CASE WHEN example = '' THEN $2 ELSE example END,
+		    it_context = $3
+		WHERE id = $1 AND it_context = ''
+		RETURNING ` + cardColumns
+
+	c, err := scanCard(r.pool.QueryRow(ctx, query, id, example, itContext))
+	if errors.Is(err, pgx.ErrNoRows) {
+		// No row matched: the card is already enriched or does not exist.
+		// Get tells these apart and returns the card or ErrNotFound.
+		return r.Get(ctx, id)
+	}
+	if err != nil {
+		return Card{}, fmt.Errorf("update card %d enrichment: %w", id, err)
 	}
 	return c, nil
 }

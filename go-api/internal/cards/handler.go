@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/dmitrycham/devspeak/go-api/internal/ai"
 	"github.com/dmitrycham/devspeak/go-api/internal/srs"
 )
 
@@ -24,6 +25,7 @@ type cardService interface {
 	Delete(ctx context.Context, id int64) error
 	NextDue(ctx context.Context) (Card, error)
 	Review(ctx context.Context, id int64, grade srs.Grade) (Card, error)
+	Enrich(ctx context.Context, id int64) (Card, error)
 }
 
 // Handler serves the cards and reviews HTTP API.
@@ -44,6 +46,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /cards", h.list)
 	mux.HandleFunc("GET /cards/{id}", h.get)
 	mux.HandleFunc("DELETE /cards/{id}", h.delete)
+	mux.HandleFunc("POST /cards/{id}/enrich", h.enrich)
 	mux.HandleFunc("GET /reviews/next", h.nextReview)
 	mux.HandleFunc("POST /reviews/{id}", h.review)
 	return mux
@@ -94,6 +97,20 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// enrich adds AI content to a card and returns the updated card.
+func (h *Handler) enrich(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseID(w, r)
+	if !ok {
+		return
+	}
+	card, err := h.svc.Enrich(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, card)
 }
 
 // nextReview returns the next due card, or 204 No Content if nothing is due.
@@ -173,6 +190,13 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, ErrDuplicate):
 		writeError(w, http.StatusConflict, err.Error())
+	// AI errors are logged, but their details (URLs, status codes) stay hidden.
+	case errors.Is(err, ai.ErrTimeout):
+		h.logger.Warn("ai service timed out", "error", err)
+		writeError(w, http.StatusGatewayTimeout, "ai service timed out")
+	case errors.Is(err, ai.ErrUnavailable):
+		h.logger.Warn("ai service failed", "error", err)
+		writeError(w, http.StatusBadGateway, "ai service unavailable")
 	default:
 		h.logger.Error("request failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "internal error")

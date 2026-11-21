@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dmitrycham/devspeak/go-api/internal/ai"
 	"github.com/dmitrycham/devspeak/go-api/internal/srs"
 )
 
@@ -18,17 +19,27 @@ type Repository interface {
 	Delete(ctx context.Context, id int64) error
 	NextDue(ctx context.Context, now time.Time) (Card, error)
 	UpdateSchedule(ctx context.Context, id int64, st srs.State, dueAt time.Time) (Card, error)
+	UpdateEnrichment(ctx context.Context, id int64, example, itContext string) (Card, error)
+}
+
+// Enricher generates card content with the AI service.
+// It is declared here, by the consumer, so tests can pass a fake.
+// *ai.Client implements it.
+type Enricher interface {
+	Enrich(ctx context.Context, phrase string) (ai.Enrichment, error)
 }
 
 // Service holds the business rules for cards and reviews.
 type Service struct {
-	repo Repository
-	now  func() time.Time // the clock; tests replace it with a fixed time
+	repo     Repository
+	enricher Enricher
+	now      func() time.Time // the clock; tests replace it with a fixed time
 }
 
-// NewService creates a Service that stores cards in repo.
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo, now: time.Now}
+// NewService creates a Service that stores cards in repo
+// and enriches them with enricher.
+func NewService(repo Repository, enricher Enricher) *Service {
+	return &Service{repo: repo, enricher: enricher, now: time.Now}
 }
 
 // Create trims the input, checks required fields and saves a new card.
@@ -87,4 +98,24 @@ func (s *Service) Review(ctx context.Context, id int64, grade srs.Grade) (Card, 
 	dueAt := s.now().AddDate(0, 0, next.IntervalDays) // interval 0 → due now
 
 	return s.repo.UpdateSchedule(ctx, id, next, dueAt)
+}
+
+// Enrich adds an IT context (and an example, if the card has none) from the
+// AI service. A card that already has an IT context is returned as is,
+// without an AI call: the result is stable and LLM calls are slow.
+// It returns ErrNotFound, or an ai error (ai.ErrUnavailable, ai.ErrTimeout).
+func (s *Service) Enrich(ctx context.Context, id int64) (Card, error) {
+	card, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return Card{}, err
+	}
+	if card.ITContext != "" {
+		return card, nil
+	}
+
+	e, err := s.enricher.Enrich(ctx, card.Phrase)
+	if err != nil {
+		return Card{}, fmt.Errorf("enrich card %d: %w", id, err)
+	}
+	return s.repo.UpdateEnrichment(ctx, id, e.Example, e.ITContext)
 }
