@@ -35,6 +35,14 @@ curl -X POST http://127.0.0.1:8000/generate -H 'Content-Type: application/json' 
 
 It returns `{"text": "...", "model": "qwen3.5:4b"}`. Errors: `422` for an empty prompt, `502` if Ollama is down or fails, `504` if Ollama times out.
 
+Enrich a phrase for a card:
+
+```sh
+curl -X POST http://127.0.0.1:8000/enrich -H 'Content-Type: application/json' -d '{"phrase": "roll out"}'
+```
+
+It returns `{"translation": "...", "example": "...", "it_context": "..."}`. The JSON schema comes from the Pydantic model `EnrichResponse` and is put into the prompt as text. Ollama's `format` field is not used: for `qwen3.5:4b` it answers `501 structured output is unavailable`. An invalid answer is retried once. Errors: `422` for an empty phrase, `502` if the answer is invalid twice or Ollama fails, `504` if Ollama times out.
+
 ## Tests and linter
 
 ```sh

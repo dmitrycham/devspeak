@@ -8,8 +8,14 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 from app.config import Settings
+from app.enrich import EnrichError, enrich
 from app.ollama import OllamaClient, OllamaError, OllamaTimeoutError
-from app.schemas import GenerateRequest, GenerateResponse
+from app.schemas import (
+    EnrichRequest,
+    EnrichResponse,
+    GenerateRequest,
+    GenerateResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,3 +66,23 @@ async def generate(
         logger.warning("ollama call failed: %s", exc)
         raise HTTPException(status_code=502, detail="LLM request failed") from exc
     return GenerateResponse(text=text, model=ollama.model)
+
+
+@app.post("/enrich")
+async def enrich_phrase(
+    body: EnrichRequest,
+    ollama: Annotated[OllamaClient, Depends(get_ollama)],
+) -> EnrichResponse:
+    try:
+        return await enrich(ollama, body.phrase)
+    except EnrichError as exc:
+        logger.warning("enrich failed: %s", exc)
+        raise HTTPException(
+            status_code=502, detail="LLM returned invalid JSON"
+        ) from exc
+    except OllamaTimeoutError as exc:
+        logger.warning("ollama call timed out: %s", exc)
+        raise HTTPException(status_code=504, detail="LLM timed out") from exc
+    except OllamaError as exc:
+        logger.warning("ollama call failed: %s", exc)
+        raise HTTPException(status_code=502, detail="LLM request failed") from exc
