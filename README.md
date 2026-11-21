@@ -126,3 +126,11 @@ cd go-api && go run ./cmd/bot      # stop with Ctrl+C
 ```bash
 cd go-api && go test -race ./... && golangci-lint run
 ```
+
+Repository tests on a real PostgreSQL (needs Docker running; testcontainers
+starts and removes the container). `-count=1` turns off the test cache, so a
+change in `migrations/*.sql` always runs the tests again:
+
+```bash
+cd go-api && go test -count=1 -tags=integration ./internal/cards/...
+```
