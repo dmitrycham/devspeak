@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 
+	"github.com/dmitrycham/devspeak/go-api/internal/ai"
 	"github.com/dmitrycham/devspeak/go-api/internal/bot"
 	"github.com/dmitrycham/devspeak/go-api/internal/cards"
 	"github.com/dmitrycham/devspeak/go-api/internal/config"
@@ -60,7 +61,9 @@ func run(logger *slog.Logger) error {
 	}
 
 	// Same layers as the API: repository → service. The bot replaces the HTTP handler.
-	svc := cards.NewService(cards.NewPostgresRepository(pool))
+	// The bot has no enrich command yet, but a real client is safer than nil.
+	aiClient := ai.NewClient(cfg.AIServiceURL, cfg.AITimeout)
+	svc := cards.NewService(cards.NewPostgresRepository(pool), aiClient)
 	handler := bot.NewHandler(svc, botCfg.AllowedUserID, logger)
 
 	return handler.Run(ctx, botCfg.Token)

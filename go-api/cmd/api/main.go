@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 
+	"github.com/dmitrycham/devspeak/go-api/internal/ai"
 	"github.com/dmitrycham/devspeak/go-api/internal/cards"
 	"github.com/dmitrycham/devspeak/go-api/internal/config"
 )
@@ -60,7 +61,8 @@ func run(logger *slog.Logger) error {
 
 	// Wire the layers: repository → service → handler.
 	repo := cards.NewPostgresRepository(pool)
-	svc := cards.NewService(repo)
+	aiClient := ai.NewClient(cfg.AIServiceURL, cfg.AITimeout)
+	svc := cards.NewService(repo, aiClient)
 	handler := cards.NewHandler(svc, logger)
 
 	srv := &http.Server{
@@ -68,8 +70,10 @@ func run(logger *slog.Logger) error {
 		Handler:           handler.Routes(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      10 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		// Must be longer than the AI timeout: otherwise the server closes the
+		// connection before POST /cards/{id}/enrich can send its answer.
+		WriteTimeout: cfg.AITimeout + 10*time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	// Start the server in a goroutine, so we can wait for a signal below.

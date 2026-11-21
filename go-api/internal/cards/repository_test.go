@@ -102,7 +102,7 @@ func mustCreate(t *testing.T, repo *PostgresRepository, phrase string) Card {
 func assertSameCard(t *testing.T, want, got Card) {
 	t.Helper()
 	if got.ID != want.ID || got.Phrase != want.Phrase || got.Translation != want.Translation ||
-		got.Example != want.Example || got.IntervalDays != want.IntervalDays ||
+		got.Example != want.Example || got.ITContext != want.ITContext || got.IntervalDays != want.IntervalDays ||
 		got.Ease != want.Ease || got.Repetitions != want.Repetitions ||
 		!got.DueAt.Equal(want.DueAt) || !got.CreatedAt.Equal(want.CreatedAt) {
 		t.Errorf("card mismatch:\n got %+v\nwant %+v", got, want)
@@ -235,6 +235,57 @@ func TestRepository_UpdateSchedule(t *testing.T) {
 	if _, err := repo.UpdateSchedule(t.Context(), c.ID+1, st, dueAt); !errors.Is(err, ErrNotFound) {
 		t.Errorf("UpdateSchedule(missing) error = %v, want ErrNotFound", err)
 	}
+}
+
+func TestRepository_UpdateEnrichment(t *testing.T) {
+	tests := []struct {
+		name        string
+		example     string // the user's example at create time
+		wantExample string
+	}{
+		{name: "user's example is kept", example: "My example.", wantExample: "My example."},
+		{name: "empty example is filled", example: "", wantExample: "Example A."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newRepo(t)
+			c, err := repo.Create(t.Context(), CreateInput{Phrase: "deploy", Translation: "развернуть", Example: tt.example})
+			if err != nil {
+				t.Fatalf("Create: %v", err)
+			}
+			want := c
+			want.Example, want.ITContext = tt.wantExample, "Context A."
+
+			// Two different AI answers, as from two parallel requests:
+			// the first one wins, and the second one must not mix in its fields.
+			first, err := repo.UpdateEnrichment(t.Context(), c.ID, "Example A.", "Context A.")
+			if err != nil {
+				t.Fatalf("first UpdateEnrichment: %v", err)
+			}
+			assertSameCard(t, want, first)
+
+			second, err := repo.UpdateEnrichment(t.Context(), c.ID, "Example B.", "Context B.")
+			if err != nil {
+				t.Fatalf("second UpdateEnrichment: %v", err)
+			}
+			assertSameCard(t, want, second)
+
+			// Read back with Get, as in TestRepository_UpdateSchedule.
+			got, err := repo.Get(t.Context(), c.ID)
+			if err != nil {
+				t.Fatalf("Get: %v", err)
+			}
+			assertSameCard(t, want, got)
+		})
+	}
+
+	t.Run("missing card → ErrNotFound", func(t *testing.T) {
+		repo := newRepo(t)
+		if _, err := repo.UpdateEnrichment(t.Context(), 1, "e", "c"); !errors.Is(err, ErrNotFound) {
+			t.Errorf("UpdateEnrichment(missing) error = %v, want ErrNotFound", err)
+		}
+	})
 }
 
 func TestRepository_NextDue(t *testing.T) {

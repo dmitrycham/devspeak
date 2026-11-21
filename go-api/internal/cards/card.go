@@ -15,6 +15,7 @@ type Card struct {
 	Phrase       string    `json:"phrase"`
 	Translation  string    `json:"translation"`
 	Example      string    `json:"example"`
+	ITContext    string    `json:"it_context"` // "" until the card is enriched
 	DueAt        time.Time `json:"due_at"`
 	IntervalDays int       `json:"interval_days"`
 	Ease         float64   `json:"ease"`
